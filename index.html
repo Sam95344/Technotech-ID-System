@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Technotech Nova Solutions | Credential Generator & Database</title>
+    <title>Technotech Nova Solutions | Credential Generator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -123,7 +123,7 @@
                 </div>
                 <div class="hidden sm:flex items-center space-x-4">
                     <div class="px-3 py-1 rounded-full bg-nova-50 border border-nova-100 text-nova-800 text-xs font-medium">
-                        <i class="fa-solid fa-circle text-[6px] mr-2 mb-[2px] animate-pulse text-green-500"></i>System Online
+                        <i class="fa-solid fa-database text-[10px] mr-2 text-nova-600"></i>Local Storage Active
                     </div>
                 </div>
             </div>
@@ -219,18 +219,15 @@
                 <div class="glass-card rounded-3xl p-6 flex flex-col h-[500px]">
                     <div class="mb-4 pb-4 border-b border-slate-200/60">
                         <div class="flex justify-between items-center mb-3">
-                            <h2 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-database text-nova-600 mr-2"></i>Database</h2>
-                            <span class="text-[10px] bg-slate-100 px-2 py-1 rounded text-slate-500 font-mono">LIVE SYNC</span>
+                            <h2 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-server text-nova-600 mr-2"></i>Local Database</h2>
+                            <button onclick="clearDatabase()" class="text-[10px] bg-red-50 hover:bg-red-100 text-red-500 px-2 py-1 rounded font-mono transition-colors">
+                                CLEAR ALL
+                            </button>
                         </div>
                         <div class="relative group">
                             <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400 group-focus-within:text-nova-500 transition-colors"></i>
-                            <input type="text" id="searchInput" placeholder="Search employee database..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-nova-500/20 focus:border-nova-500 outline-none transition-all placeholder-slate-400 text-sm">
+                            <input type="text" id="searchInput" placeholder="Search saved employees..." class="w-full pl-10 pr-4 py-2.5 bg-slate-50/50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-nova-500/20 focus:border-nova-500 outline-none transition-all placeholder-slate-400 text-sm">
                         </div>
-                    </div>
-
-                    <div id="loadingIndicator" class="text-center py-12 text-slate-400 hidden">
-                        <div class="w-12 h-12 border-4 border-nova-100 border-t-nova-500 rounded-full animate-spin mx-auto mb-3"></div>
-                        <p class="text-xs font-medium tracking-wide">SYNCING DATA...</p>
                     </div>
 
                     <div id="employeeList" class="flex-grow overflow-y-auto custom-scrollbar space-y-3 pr-2">
@@ -239,7 +236,7 @@
                             <div class="w-16 h-16 bg-slate-200 rounded-full flex items-center justify-center mb-3">
                                 <i class="fa-regular fa-folder-open text-2xl text-slate-400"></i>
                             </div>
-                            <p class="text-sm font-medium">Database is empty</p>
+                            <p class="text-sm font-medium">No saved records</p>
                         </div>
                     </div>
                 </div>
@@ -396,51 +393,62 @@
         </div>
     </footer>
 
-    <!-- Firebase Logic -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    <!-- LocalStorage Logic Script -->
+    <script>
+        const STORAGE_KEY = 'technotech_employees_v1';
+        
+        // Load data on start
+        window.appData = {
+            allEmployees: JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+        };
 
-        window.appData = { currentUser: null, allEmployees: [], db: null, appId: null };
-
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        window.appData.db = getFirestore(app);
-        window.appData.appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-        async function initAuth() {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
-            }
-        }
-        initAuth();
-
-        onAuthStateChanged(auth, (user) => {
-            if (user) {
-                window.appData.currentUser = user;
-                document.getElementById('loadingIndicator').classList.remove('hidden');
-                setupDatabaseListener(user.uid);
-            }
+        // Render immediately
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('doj').valueAsDate = new Date();
+            renderEmployeeList(window.appData.allEmployees);
         });
 
-        function setupDatabaseListener(userId) {
-            const colRef = collection(window.appData.db, 'artifacts', window.appData.appId, 'users', userId, 'employees');
-            onSnapshot(colRef, (snapshot) => {
-                const employees = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                employees.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-                window.appData.allEmployees = employees;
-                document.getElementById('loadingIndicator').classList.add('hidden');
-                renderEmployeeList(employees);
-            }, (error) => {
-                console.error("Database error:", error);
-                document.getElementById('loadingIndicator').innerHTML = '<span class="text-red-500">Error syncing data</span>';
-            });
-        }
+        // Main Save Function
+        window.saveToLocal = (data) => {
+            const newEmp = {
+                ...data,
+                createdAt: new Date().toISOString()
+            };
+            
+            // Add to beginning of array
+            window.appData.allEmployees.unshift(newEmp);
+            
+            // Save to localStorage
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(window.appData.allEmployees));
+            
+            // Update UI
+            renderEmployeeList(window.appData.allEmployees);
+            
+            // Feedback Button Animation
+            const btn = document.getElementById('generateBtn');
+            const originalContent = btn.innerHTML;
+            
+            btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i> Saved Locally';
+            btn.classList.remove('from-nova-900', 'to-slate-900');
+            btn.classList.add('bg-green-600');
+            
+            setTimeout(() => {
+                btn.innerHTML = originalContent;
+                btn.classList.add('from-nova-900', 'to-slate-900');
+                btn.classList.remove('bg-green-600');
+            }, 1500);
+        };
 
+        // Clear Database Function
+        window.clearDatabase = () => {
+            if(confirm('Are you sure you want to clear all saved employee data?')) {
+                localStorage.removeItem(STORAGE_KEY);
+                window.appData.allEmployees = [];
+                renderEmployeeList([]);
+            }
+        };
+
+        // Render List
         window.renderEmployeeList = (list) => {
             const container = document.getElementById('employeeList');
             container.innerHTML = '';
@@ -451,7 +459,7 @@
                         <div class="w-12 h-12 bg-slate-200 rounded-full flex items-center justify-center mb-3">
                             <i class="fa-regular fa-folder-open text-xl text-slate-500"></i>
                         </div>
-                        <p class="text-sm font-medium text-slate-500">No records found</p>
+                        <p class="text-sm font-medium text-slate-500">No saved records</p>
                     </div>`;
                 return;
             }
@@ -482,50 +490,18 @@
             });
         };
 
-        window.saveToFirestore = async (data) => {
-            if (!window.appData.currentUser) return;
-            const colRef = collection(window.appData.db, 'artifacts', window.appData.appId, 'users', window.appData.currentUser.uid, 'employees');
-            const docData = { ...data, createdAt: new Date().toISOString() };
-
-            const btn = document.getElementById('generateBtn');
-            const originalContent = btn.innerHTML;
-            
-            // Loading State
-            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
-            btn.classList.add('opacity-80', 'cursor-wait');
-            
-            try {
-                await addDoc(colRef, docData);
-                // Success State
-                btn.innerHTML = '<i class="fa-solid fa-check mr-2"></i> Saved';
-                btn.classList.remove('from-nova-900', 'to-slate-900');
-                btn.classList.add('bg-green-600');
-                
-                setTimeout(() => {
-                    btn.innerHTML = originalContent;
-                    btn.classList.add('from-nova-900', 'to-slate-900');
-                    btn.classList.remove('bg-green-600', 'opacity-80', 'cursor-wait');
-                }, 1500);
-            } catch (err) {
-                console.error("Save failed", err);
-                btn.innerHTML = 'Error';
-            }
-        };
-    </script>
-
-    <script>
-        document.getElementById('doj').valueAsDate = new Date();
-
+        // Search Logic
         document.getElementById('searchInput').addEventListener('keyup', (e) => {
             const term = e.target.value.toLowerCase();
-            const allData = window.appData?.allEmployees || [];
+            const allData = window.appData.allEmployees;
             const filtered = allData.filter(emp => 
                 emp.name.toLowerCase().includes(term) || 
                 emp.empId.toLowerCase().includes(term)
             );
-            if (window.renderEmployeeList) window.renderEmployeeList(filtered);
+            renderEmployeeList(filtered);
         });
 
+        // Generator Logic
         function generateRandomString(length) {
             const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
             let result = '';
@@ -554,7 +530,7 @@
             const empData = { name, dept, roleType, title, doj, empId, certId, authHash };
             
             updateCardView(empData);
-            if(window.saveToFirestore) window.saveToFirestore(empData);
+            window.saveToLocal(empData);
         }
 
         window.loadEmployeeToCard = (data) => {
